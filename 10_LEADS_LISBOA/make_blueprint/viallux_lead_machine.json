@@ -1,0 +1,275 @@
+{
+  "name": "VIALLUX — Máquina de Leads Lisboa (Apify + Brevo)",
+  "flow": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebHook",
+      "version": 1,
+      "parameters": {
+        "hook": 1,
+        "maxResults": 1
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": { "x": 0, "y": 0 },
+        "restore": {
+          "parameters": {
+            "hook": { "label": "VIALLUX Daily Trigger" }
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": { "handleErrors": false },
+      "mapper": {
+        "url": "https://api.apify.com/v2/acts/compass~crawler-google-places/runs",
+        "method": "POST",
+        "headers": [
+          { "name": "Content-Type", "value": "application/json" }
+        ],
+        "qs": [
+          { "name": "token", "value": "SUA_APIFY_API_KEY_AQUI" }
+        ],
+        "body": "{\"searchStringsArray\":[\"gest\\u00e3o de condom\\u00ednios Lisboa\",\"hotel Lisboa\",\"hostel Lisboa\",\"alojamento local Lisboa\"],\"locationQuery\":\"Lisboa, Portugal\",\"maxCrawledPlacesPerSearch\":40,\"language\":\"pt\",\"maxImages\":0,\"maxReviews\":0}",
+        "bodyType": "raw",
+        "contentType": "application/json",
+        "parseResponse": true
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 0 },
+        "restore": {}
+      }
+    },
+    {
+      "id": 3,
+      "module": "util:SetVariables2",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "variables": [
+          { "name": "runId", "value": "{{2.data.id}}" },
+          { "name": "datasetId", "value": "{{2.data.defaultDatasetId}}" }
+        ]
+      },
+      "metadata": {
+        "designer": { "x": 600, "y": 0 }
+      }
+    },
+    {
+      "id": 4,
+      "module": "util:Sleep",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "delay": 120
+      },
+      "metadata": {
+        "designer": { "x": 900, "y": 0 },
+        "restore": {}
+      }
+    },
+    {
+      "id": 5,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": { "handleErrors": false },
+      "mapper": {
+        "url": "https://api.apify.com/v2/actor-runs/{{3.runId}}",
+        "method": "GET",
+        "qs": [
+          { "name": "token", "value": "SUA_APIFY_API_KEY_AQUI" }
+        ],
+        "parseResponse": true
+      },
+      "metadata": {
+        "designer": { "x": 1200, "y": 0 }
+      }
+    },
+    {
+      "id": 6,
+      "module": "flow:Router",
+      "version": 1,
+      "parameters": {},
+      "mapper": {},
+      "routes": [
+        {
+          "flow": [
+            {
+              "id": 7,
+              "module": "http:ActionSendData",
+              "version": 3,
+              "parameters": { "handleErrors": false },
+              "mapper": {
+                "url": "https://api.apify.com/v2/datasets/{{3.datasetId}}/items",
+                "method": "GET",
+                "qs": [
+                  { "name": "token", "value": "SUA_APIFY_API_KEY_AQUI" },
+                  { "name": "format", "value": "json" },
+                  { "name": "clean", "value": "true" }
+                ],
+                "parseResponse": true
+              },
+              "metadata": {
+                "designer": { "x": 1500, "y": -100 }
+              }
+            },
+            {
+              "id": 8,
+              "module": "flow:ArrayIterator",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "array": "{{7.data}}"
+              },
+              "metadata": {
+                "designer": { "x": 1800, "y": -100 }
+              }
+            },
+            {
+              "id": 9,
+              "module": "flow:Filter",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "condition": {
+                  "a": "{{8.website}}",
+                  "o": "exist"
+                }
+              },
+              "metadata": {
+                "designer": { "x": 2100, "y": -100 }
+              }
+            },
+            {
+              "id": 10,
+              "module": "http:ActionSendData",
+              "version": 3,
+              "parameters": { "handleErrors": true },
+              "mapper": {
+                "url": "{{replace(replace(8.website, 'http://', 'https://'), 'www.', 'https://www.')}}/contacto",
+                "method": "GET",
+                "parseResponse": false
+              },
+              "metadata": {
+                "designer": { "x": 2400, "y": -100 }
+              }
+            },
+            {
+              "id": 11,
+              "module": "regexp:Parser",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "pattern": "[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}",
+                "text": "{{10.data}}",
+                "global": false,
+                "ignoreCase": true,
+                "multiline": false,
+                "singleline": false
+              },
+              "metadata": {
+                "designer": { "x": 2700, "y": -100 }
+              }
+            },
+            {
+              "id": 12,
+              "module": "flow:Filter",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "condition": {
+                  "a": "{{11.result}}",
+                  "o": "exist"
+                }
+              },
+              "metadata": {
+                "designer": { "x": 3000, "y": -100 }
+              }
+            },
+            {
+              "id": 13,
+              "module": "http:ActionSendData",
+              "version": 3,
+              "parameters": { "handleErrors": false },
+              "mapper": {
+                "url": "https://api.brevo.com/v3/smtp/email",
+                "method": "POST",
+                "headers": [
+                  { "name": "api-key", "value": "SUA_BREVO_API_KEY_AQUI" },
+                  { "name": "Content-Type", "value": "application/json" },
+                  { "name": "Accept", "value": "application/json" }
+                ],
+                "body": "{\n  \"sender\": {\n    \"name\": \"VIALLUX Instala\\u00e7\\u00f5es El\\u00e9tricas\",\n    \"email\": \"geral@viallux.pt\"\n  },\n  \"to\": [{\n    \"email\": \"{{11.result}}\",\n    \"name\": \"{{8.title}}\"\n  }],\n  \"subject\": \"Parceria El\\u00e9trica para o seu neg\\u00f3cio em Lisboa — VIALLUX\",\n  \"htmlContent\": \"<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a'><div style='background:#1F4E79;padding:24px;text-align:center'><h1 style='color:#FFD700;margin:0;font-size:22px'>&#9889; VIALLUX</h1><p style='color:#cce;margin:6px 0 0;font-size:13px'>Instala\\u00e7\\u00f5es El\\u00e9tricas Lisboa</p></div><div style='padding:32px 28px'><p style='font-size:16px'>Ol\\u00e1 <strong>{{8.title}}</strong>,</p><p>A <strong>VIALLUX Instala\\u00e7\\u00f5es El\\u00e9tricas</strong> \\u00e9 especializada em servi\\u00e7os el\\u00e9tricos para empresas em Lisboa.</p><ul style='padding-left:20px;line-height:2'><li>&#10003; Manuten\\u00e7\\u00e3o preventiva e corretiva</li><li>&#10003; Urgências 24h com resposta garantida</li><li>&#10003; Certifica\\u00e7\\u00f5es ERSE e conformidade legal</li><li>&#10003; Instala\\u00e7\\u00e3o de carregadores el\\u00e9tricos (EV)</li></ul><p>Enviamos proposta personalizada em 24h, sem compromisso.</p><div style='text-align:center;margin:32px 0'><a href='mailto:geral@viallux.pt' style='background:#FFD700;color:#1a1a1a;padding:14px 32px;text-decoration:none;border-radius:6px;font-weight:bold;font-size:15px'>&#128233; Solicitar Or\\u00e7amento</a></div></div><div style='background:#f5f5f5;padding:16px 28px;font-size:12px;color:#999;text-align:center'>VIALLUX Instala\\u00e7\\u00f5es El\\u00e9tricas Lda &middot; Lisboa, Portugal<br/><a href='{{unsubscribeUrl}}' style='color:#bbb'>Cancelar subscri\\u00e7\\u00e3o</a></div></div>\",\n  \"tags\": [\"viallux-leads\", \"make-automation\"]\n}",
+                "bodyType": "raw",
+                "contentType": "application/json",
+                "parseResponse": true
+              },
+              "metadata": {
+                "designer": { "x": 3300, "y": -100 }
+              }
+            }
+          ],
+          "label": "SUCCEEDED — Processar leads e enviar emails"
+        },
+        {
+          "flow": [
+            {
+              "id": 14,
+              "module": "util:Sleep",
+              "version": 1,
+              "parameters": {},
+              "mapper": { "delay": 60 },
+              "metadata": {
+                "designer": { "x": 1500, "y": 100 }
+              }
+            }
+          ],
+          "label": "RUNNING — Aguardar mais 60s"
+        }
+      ],
+      "metadata": {
+        "designer": { "x": 1350, "y": 0 },
+        "restore": {
+          "routes": [
+            {
+              "label": "SUCCEEDED",
+              "filter": {
+                "name": "Apify Completo",
+                "conditions": [[{ "a": "{{5.data.status}}", "b": "SUCCEEDED", "o": "text:equal" }]]
+              }
+            },
+            {
+              "label": "A correr ainda",
+              "filter": {
+                "name": "Apify Running",
+                "conditions": [[{ "a": "{{5.data.status}}", "b": "RUNNING", "o": "text:equal" }]]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": []
+    },
+    "zone": "eu1.make.com"
+  }
+}

@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
+    "server": "node server.js",
     "test:connections": "node test-connections.js",
     "scrape": "node scraper/googleMaps.js",
     "scrape:apify": "node scraper/apify.js",
