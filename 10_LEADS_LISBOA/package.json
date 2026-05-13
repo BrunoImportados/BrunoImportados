@@ -6,9 +6,12 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
+    "test:connections": "node test-connections.js",
     "scrape": "node scraper/googleMaps.js",
+    "scrape:apify": "node scraper/apify.js",
     "enrich": "node enrichment/emailFinder.js",
     "pipeline": "node pipeline.js",
+    "email:send": "node -e \"import('./email/brevo.js').then(m=>m.testBrevoConnection())\"",
     "dashboard": "node dashboard/server.js",
     "export": "node output/exporter.js",
     "score": "node enrichment/scorer.js",

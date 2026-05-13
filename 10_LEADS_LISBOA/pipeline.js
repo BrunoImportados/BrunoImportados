@@ -1,8 +1,10 @@
 import "dotenv/config";
-import { scrapeAllSegments } from "./scraper/googleMaps.js";
+import { scrapeAllSegmentsApify } from "./scraper/apify.js";
+import { scrapeAllSegments as scrapeAllSegmentsPuppeteer } from "./scraper/googleMaps.js";
 import { enrichLeadEmails } from "./enrichment/emailFinder.js";
 import { scoreAllLeads } from "./enrichment/scorer.js";
 import { exportAll } from "./output/exporter.js";
+import { sendDailyEmails } from "./email/brevo.js";
 import { SEGMENTS } from "./config/settings.js";
 import { logger } from "./config/logger.js";
 import { promises as fs } from "fs";
@@ -24,19 +26,25 @@ async function loadCache() {
 }
 
 export async function runPipeline(options = {}) {
-  const { useCache = false, segmentIds = null, skipEnrichment = false } = options;
+  const {
+    useCache = false,
+    segmentIds = null,
+    skipEnrichment = false,
+    skipEmail = false,
+    // "apify" usa Apify cloud; "puppeteer" usa scraper local
+    scraper = process.env.APIFY_API_KEY ? "apify" : "puppeteer",
+  } = options;
 
   logger.section("VIALLUX — PIPELINE DE LEADS LISBOA");
   const startTime = Date.now();
 
-  // Selecionar segmentos
   const segments = segmentIds
     ? SEGMENTS.filter((s) => segmentIds.includes(s.id))
     : SEGMENTS;
 
   let leads = [];
 
-  // FASE 1: Scraping (ou cache)
+  // ── FASE 1: CAPTAÇÃO ──────────────────────────────────────────
   if (useCache) {
     logger.info("A carregar leads do cache...");
     const cached = await loadCache();
@@ -49,27 +57,42 @@ export async function runPipeline(options = {}) {
   }
 
   if (leads.length === 0) {
-    logger.section("FASE 1: SCRAPING GOOGLE MAPS");
-    leads = await scrapeAllSegments(segments);
+    logger.section(`FASE 1: CAPTAÇÃO (${scraper.toUpperCase()})`);
+
+    if (scraper === "apify") {
+      leads = await scrapeAllSegmentsApify(segments);
+    } else {
+      leads = await scrapeAllSegmentsPuppeteer(segments);
+    }
+
     await saveCache(leads);
     logger.success(`Fase 1 concluída: ${leads.length} leads brutos`);
   }
 
-  // FASE 2: Enriquecimento de emails
+  // ── FASE 2: ENRIQUECIMENTO ────────────────────────────────────
   if (!skipEnrichment) {
     logger.section("FASE 2: ENRIQUECIMENTO DE EMAILS");
     leads = await enrichLeadEmails(leads);
   }
 
-  // FASE 3: Scoring
+  // ── FASE 3: SCORING ───────────────────────────────────────────
   logger.section("FASE 3: CLASSIFICAÇÃO");
   leads = scoreAllLeads(leads);
 
-  // FASE 4: Exportação
+  // ── FASE 4: EXPORTAÇÃO ────────────────────────────────────────
   logger.section("FASE 4: EXPORTAÇÃO");
   await exportAll(leads);
 
-  // Relatório final
+  // ── FASE 5: ENVIO EMAIL (BREVO) ───────────────────────────────
+  let emailStats = { sent: 0, failed: 0, skipped: 0 };
+  if (!skipEmail && process.env.BREVO_API_KEY) {
+    logger.section("FASE 5: ENVIO DE EMAILS (BREVO)");
+    emailStats = await sendDailyEmails(leads);
+  } else if (!process.env.BREVO_API_KEY) {
+    logger.warn("BREVO_API_KEY não configurado — fase de email ignorada");
+  }
+
+  // ── RELATÓRIO FINAL ───────────────────────────────────────────
   const elapsed = Math.round((Date.now() - startTime) / 1000);
   const stats = {
     total: leads.length,
@@ -78,6 +101,8 @@ export async function runPipeline(options = {}) {
     quentes: leads.filter((l) => l.tier === "quente").length,
     medios: leads.filter((l) => l.tier === "médio").length,
     frios: leads.filter((l) => l.tier === "frio").length,
+    emailsEnviados: emailStats.sent,
+    emailsFalhados: emailStats.failed,
     tempoExecucao: `${elapsed}s`,
   };
 
@@ -88,6 +113,8 @@ export async function runPipeline(options = {}) {
   logger.success(`Leads quentes 🔥: ${stats.quentes}`);
   logger.info(`Leads médios ⚡: ${stats.medios}`);
   logger.info(`Leads frios ❄️: ${stats.frios}`);
+  logger.success(`Emails enviados hoje: ${stats.emailsEnviados}`);
+  if (stats.emailsFalhados > 0) logger.warn(`Emails falhados: ${stats.emailsFalhados}`);
   logger.info(`Tempo de execução: ${stats.tempoExecucao}`);
 
   return { leads, stats };
