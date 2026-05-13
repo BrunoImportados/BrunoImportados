@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VIALLUX — Dashboard de Leads Lisboa</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+    header { background: #1e3a5f; padding: 20px 30px; display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #f59e0b; }
+    header h1 { font-size: 1.4rem; font-weight: 700; }
+    header span { font-size: 0.85rem; color: #94a3b8; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; padding: 24px 30px; }
+    .stat-card { background: #1e293b; border-radius: 10px; padding: 20px; text-align: center; border-top: 3px solid #3b82f6; }
+    .stat-card.hot { border-color: #ef4444; }
+    .stat-card.med { border-color: #f59e0b; }
+    .stat-card .num { font-size: 2.2rem; font-weight: 800; color: #f8fafc; }
+    .stat-card .label { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
+    .controls { padding: 0 30px 20px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .controls input, .controls select { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; outline: none; }
+    .controls input { flex: 1; min-width: 200px; }
+    .controls input:focus, .controls select:focus { border-color: #3b82f6; }
+    .table-wrap { padding: 0 30px 40px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th { background: #1e3a5f; padding: 12px 14px; text-align: left; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
+    td { padding: 12px 14px; border-bottom: 1px solid #1e293b; }
+    tr:hover td { background: #1e293b; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+    .badge-quente { background: #7f1d1d; color: #fca5a5; }
+    .badge-médio { background: #78350f; color: #fcd34d; }
+    .badge-frio { background: #1e3a5f; color: #93c5fd; }
+    a { color: #60a5fa; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .count { padding: 0 30px 16px; color: #94a3b8; font-size: 0.9rem; }
+    @media (max-width: 600px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>⚡ VIALLUX — Leads Lisboa</h1>
+      <span>Sistema automático de geração de leads</span>
+    </div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="controls">
+    <input type="text" id="search" placeholder="🔍 Pesquisar nome, email, telefone..." oninput="filterLeads()" />
+    <select id="categoria" onchange="filterLeads()">
+      <option value="">Todas as categorias</option>
+      <option value="Gestão de Condomínios">Gestão de Condomínios</option>
+      <option value="Hotéis">Hotéis</option>
+      <option value="Hostels">Hostels</option>
+      <option value="Alojamento Local">Alojamento Local</option>
+    </select>
+    <select id="tier" onchange="filterLeads()">
+      <option value="">Todas as classificações</option>
+      <option value="quente">🔥 Quentes</option>
+      <option value="médio">⚡ Médios</option>
+      <option value="frio">❄️ Frios</option>
+    </select>
+  </div>
+
+  <div class="count" id="count"></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Nome</th>
+          <th>Categoria</th>
+          <th>Telefone</th>
+          <th>Email</th>
+          <th>Website</th>
+          <th>Score</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    let allLeads = [];
+
+    async function loadStats() {
+      const res = await fetch("/api/stats");
+      const s = await res.json();
+      document.getElementById("stats").innerHTML = `
+        <div class="stat-card"><div class="num">${s.total}</div><div class="label">Total Leads</div></div>
+        <div class="stat-card hot"><div class="num">${s.quentes}</div><div class="label">🔥 Quentes</div></div>
+        <div class="stat-card med"><div class="num">${s.medios}</div><div class="label">⚡ Médios</div></div>
+        <div class="stat-card"><div class="num">${s.comTelefone}</div><div class="label">📞 Com Telefone</div></div>
+        <div class="stat-card"><div class="num">${s.comEmail}</div><div class="label">✉️ Com Email</div></div>
+        ${Object.entries(s.porCategoria).map(([cat, n]) => `<div class="stat-card"><div class="num">${n}</div><div class="label">${cat}</div></div>`).join("")}
+      `;
+    }
+
+    async function loadLeads() {
+      const res = await fetch("/api/leads");
+      const data = await res.json();
+      allLeads = data.leads;
+      renderLeads(allLeads);
+    }
+
+    function renderLeads(leads) {
+      document.getElementById("count").textContent = `${leads.length} lead(s) encontrado(s)`;
+      const tbody = document.getElementById("tbody");
+      tbody.innerHTML = leads.map((l, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td><strong>${l.nome}</strong></td>
+          <td>${l.categoria}</td>
+          <td>${l.telefone ? `<a href="tel:${l.telefone}">${l.telefone}</a>` : "—"}</td>
+          <td>${l.email ? `<a href="mailto:${l.email}">${l.email}</a>` : "—"}</td>
+          <td>${l.website ? `<a href="${l.website}" target="_blank">🔗 site</a>` : "—"}</td>
+          <td>${l.score}</td>
+          <td><span class="badge badge-${l.tier}">${l.tier}</span></td>
+        </tr>
+      `).join("");
+    }
+
+    function filterLeads() {
+      const search = document.getElementById("search").value.toLowerCase();
+      const cat = document.getElementById("categoria").value;
+      const tier = document.getElementById("tier").value;
+
+      let filtered = allLeads;
+      if (search) filtered = filtered.filter(l =>
+        l.nome.toLowerCase().includes(search) ||
+        (l.email || "").toLowerCase().includes(search) ||
+        (l.telefone || "").includes(search)
+      );
+      if (cat) filtered = filtered.filter(l => l.categoria === cat);
+      if (tier) filtered = filtered.filter(l => l.tier === tier);
+
+      renderLeads(filtered);
+    }
+
+    loadStats();
+    loadLeads();
+    setInterval(loadLeads, 30000); // Atualizar a cada 30s
+  </script>
+</body>
+</html>

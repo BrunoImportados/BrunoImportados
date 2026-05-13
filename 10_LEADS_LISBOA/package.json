@@ -1,0 +1,35 @@
+{
+  "name": "viallux-leads-lisboa",
+  "version": "1.0.0",
+  "description": "Sistema automático de geração de leads em Lisboa para VIALLUX",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "scrape": "node scraper/googleMaps.js",
+    "enrich": "node enrichment/emailFinder.js",
+    "pipeline": "node pipeline.js",
+    "dashboard": "node dashboard/server.js",
+    "export": "node output/exporter.js",
+    "score": "node enrichment/scorer.js",
+    "cron": "node cron.js"
+  },
+  "dependencies": {
+    "puppeteer": "^21.0.0",
+    "axios": "^1.6.0",
+    "csv-writer": "^1.6.0",
+    "xlsx": "^0.18.5",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.3.1",
+    "cheerio": "^1.0.0-rc.12",
+    "google-auth-library": "^9.0.0",
+    "googleapis": "^128.0.0",
+    "express": "^4.18.2",
+    "chalk": "^5.3.0",
+    "p-limit": "^5.0.0",
+    "p-retry": "^6.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
